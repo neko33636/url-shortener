@@ -17,23 +17,13 @@ public class UrlController {
     }
 
     @PostMapping("/urls")
-    public CreateUrlResponse post(@RequestBody CreateUrlRequest createUrlRequest) {
-        String shortUrl = urlService.createShortUrl(createUrlRequest.getUrl());
+    public CreateUrlResponse create(@RequestBody CreateUrlRequest request) {
+
+        String shortCode = urlService.createShortUrl(request.getUrl());
 
         CreateUrlResponse response = new CreateUrlResponse();
-        response.setShortUrl(shortUrl);
+        response.setShortUrl("http://localhost:8080/r/" + shortCode);
 
         return response;
-    }
-
-    @GetMapping("/{shortUrl}")
-    public ResponseEntity<Void> redirect(@PathVariable String shortUrl) {
-
-        String originalUrl = urlService.getOriginalUrl(shortUrl);
-
-        return ResponseEntity
-                .status(302)
-                .header("Location", originalUrl)
-                .build();
     }
 }

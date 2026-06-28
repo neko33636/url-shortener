@@ -1,23 +1,38 @@
 package com.maksim.urlshortener.service;
 
-import com.maksim.urlshortener.dto.CreateUrlResponse;
+import com.maksim.urlshortener.entity.UrlEntity;
+import com.maksim.urlshortener.repository.UrlRepository;
+import com.maksim.urlshortener.util.ShortCodeGenerator;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
 @Service
 public class UrlService {
-    long counter = 1;
-    Map<Long, String> storage = new HashMap<>();
+
+    private final UrlRepository repository;
+
+    public UrlService(UrlRepository repository) {
+        this.repository = repository;
+    }
+
     public String createShortUrl(String url) {
-        long id = counter++;
-        storage.put(id, url);
-        return String.valueOf(id);
+        UrlEntity entity = new UrlEntity();
+        entity.setOriginalUrl(url);
+
+        String shortCode;
+        do {
+            shortCode = ShortCodeGenerator.generate();
+        } while (repository.findByShortCode(shortCode).isPresent());
+
+        entity.setShortCode(shortCode);
+
+        repository.save(entity);
+
+        return shortCode;
     }
 
-    public String getOriginalUrl(String shortUrl) {
-        long id = Long.parseLong(shortUrl);
-        return storage.get(id);
+    public String getOriginalUrl(String shortCode) {
+        return repository.findByShortCode(shortCode)
+                .map(UrlEntity::getOriginalUrl)
+                .orElseThrow(() -> new RuntimeException("URL не найден"));
     }
-
 }
