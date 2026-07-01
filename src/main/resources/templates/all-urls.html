@@ -1,10 +1,200 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Все ссылки — EasyLink</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
+
+<div class="container">
+    <header class="d-flex flex-wrap align-items-center justify-content-between py-3 mb-4 border-bottom">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-link-45deg" style="font-size: 32px;"></i>
+            <span class="fw-bold fs-4 ms-2">EasyLink</span>
+        </div>
+        <ul class="nav">
+            <li><a href="/" class="nav-link link-secondary">Главная</a></li>
+            <li><a href="/all-urls" class="nav-link active">Все ссылки</a></li>
+            <li><a href="/about" class="nav-link">О сервисе</a></li>
+            <li><a href="/contacts" class="nav-link">Контакты</a></li>
+        </ul>
+        <div id="authHeader">
+            <a href="/login" class="btn btn-outline-primary me-2">Войти</a>
+            <a href="/register" class="btn btn-primary">Регистрация</a>
+        </div>
+    </header>
+</div>
+
+<main class="container flex-grow-1 mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Все ссылки</h2>
+        <button class="btn btn-outline-primary btn-sm" id="refreshBtn" onclick="loadUrls()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Обновить
+        </button>
+    </div>
+
+    <div id="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка…</span>
+        </div>
+        <p class="mt-3 text-body-secondary">Загрузка списка ссылок…</p>
+    </div>
+
+    <div id="error" class="alert alert-danger d-none"></div>
+
+    <div id="empty" class="alert alert-info d-none">
+        Пока нет ни одной ссылки.
+        <span id="createHint" class="d-none">
+            <a href="/login" class="alert-link">Войдите</a>, чтобы создать первую.
+        </span>
+    </div>
+
+    <div id="tableWrapper" class="table-responsive d-none">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Короткая ссылка</th>
+                <th>Исходный URL</th>
+                <th>Автор</th>
+            </tr>
+            </thead>
+            <tbody id="urlsBody"></tbody>
+        </table>
+    </div>
+</main>
+
+<footer class="container py-3 border-top mt-auto">
+    <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-link-45deg" style="font-size: 28px;"></i>
+            <span class="ms-2 text-body-secondary">© 2026 EasyLink</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+    let currentUser = null;
+
+    async function loadCurrentUser() {
+        try {
+            const response = await fetch("/api/auth/me", { credentials: "include" });
+            if (response.ok) {
+                currentUser = await response.json();
+                document.getElementById("authHeader").innerHTML =
+                    `<span class="me-3 text-body-secondary">${currentUser.username}</span>` +
+                    `<button class="btn btn-outline-secondary" onclick="logout()">Выйти</button>`;
+            } else {
+                document.getElementById("createHint").classList.remove("d-none");
+            }
+        } catch (e) {
+            document.getElementById("createHint").classList.remove("d-none");
+        }
+    }
+
+    async function logout() {
+        try {
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+            window.location.href = "/";
+        } catch (e) {
+            alert("Ошибка сети. Проверьте подключение.");
+        }
+    }
+
+    function truncateUrl(url, maxLen) {
+        if (url.length <= maxLen) return url;
+        return url.substring(0, maxLen - 3) + "…";
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function loadUrls() {
+        const loading = document.getElementById("loading");
+        const error = document.getElementById("error");
+        const empty = document.getElementById("empty");
+        const tableWrapper = document.getElementById("tableWrapper");
+        const refreshBtn = document.getElementById("refreshBtn");
+
+        loading.classList.remove("d-none");
+        error.classList.add("d-none");
+        empty.classList.add("d-none");
+        tableWrapper.classList.add("d-none");
+        refreshBtn.disabled = true;
+
+        try {
+            const response = await fetch("/api/urls", { credentials: "include" });
+
+            if (!response.ok) {
+                throw new Error("Не удалось загрузить список");
+            }
+
+            const urls = await response.json();
+            loading.classList.add("d-none");
+
+            if (urls.length === 0) {
+                empty.classList.remove("d-none");
+                return;
+            }
+
+            const tbody = document.getElementById("urlsBody");
+            tbody.innerHTML = urls.map((item, index) => {
+                const shortUrl = escapeHtml(item.shortUrl);
+                const originalUrl = escapeHtml(item.originalUrl);
+                const owner = item.ownerUsername
+                    ? escapeHtml(item.ownerUsername)
+                    : '<span class="text-body-secondary">—</span>';
+                return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <a href="${shortUrl}" target="_blank" rel="noopener">${shortUrl}</a>
+                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn"
+                                data-url="${shortUrl}"
+                                title="Копировать">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <a href="${originalUrl}" target="_blank" rel="noopener"
+                           title="${originalUrl}">
+                            ${truncateUrl(originalUrl, 60)}
+                        </a>
+                    </td>
+                    <td>${owner}</td>
+                </tr>`;
+            }).join("");
+
+            tbody.querySelectorAll(".copy-btn").forEach(btn => {
+                btn.addEventListener("click", () => copyToClipboard(btn.dataset.url));
+            });
+
+            tableWrapper.classList.remove("d-none");
+        } catch (e) {
+            loading.classList.add("d-none");
+            error.textContent = "Ошибка сети. Проверьте подключение и попробуйте снова.";
+            error.classList.remove("d-none");
+        } finally {
+            refreshBtn.disabled = false;
+        }
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Ссылка скопирована!");
+        }).catch(() => {
+            alert("Не удалось скопировать ссылку");
+        });
+    }
+
+    loadCurrentUser();
+    loadUrls();
+</script>
 
 </body>
 </html>

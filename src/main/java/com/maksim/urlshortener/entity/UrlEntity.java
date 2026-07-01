@@ -16,6 +16,10 @@ public class UrlEntity {
     @Column(nullable = false)
     private String originalUrl;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private UserEntity owner;
+
     public Long getId() {
         return id;
     }
@@ -34,5 +38,13 @@ public class UrlEntity {
 
     public void setOriginalUrl(String originalUrl) {
         this.originalUrl = originalUrl;
+    }
+
+    public UserEntity getOwner() {
+        return owner;
+    }
+
+    public void setOwner(UserEntity owner) {
+        this.owner = owner;
     }
 }

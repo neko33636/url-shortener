@@ -15,7 +15,6 @@
 
 <div class="container">
 
-    <!-- HEADER -->
     <header class="d-flex flex-wrap align-items-center justify-content-between py-3 mb-4 border-bottom">
 
         <div class="d-flex align-items-center">
@@ -30,37 +29,44 @@
             <li><a href="/contacts" class="nav-link">Контакты</a></li>
         </ul>
 
-        <div>
-            <button class="btn btn-outline-primary me-2">Войти</button>
-            <button class="btn btn-primary">Регистрация</button>
+        <div id="authHeader">
+            <a href="/login" class="btn btn-outline-primary me-2">Войти</a>
+            <a href="/register" class="btn btn-primary">Регистрация</a>
         </div>
 
     </header>
 
 </div>
 
-<!-- MAIN CONTENT (растягивается и толкает footer вниз) -->
 <main class="container flex-grow-1 mt-5">
 
-    <h2 class="mb-4">Сократить ссылку</h2>
-
-    <div class="input-group mb-3">
-        <input type="text"
-               id="urlInput"
-               class="form-control"
-               placeholder="https://example.com">
-
-        <button class="btn btn-primary"
-                onclick="shortenUrl()">
-            Сократить
-        </button>
+    <div id="guestMessage" class="alert alert-info d-none">
+        Войдите, чтобы создавать ссылки.
+        <a href="/login" class="alert-link">Войти</a> или
+        <a href="/register" class="alert-link">зарегистрироваться</a>.
     </div>
 
-    <div id="result"></div>
+    <div id="shortenSection" class="d-none">
+        <h2 class="mb-4">Сократить ссылку</h2>
+
+        <div class="input-group mb-3">
+            <input type="text"
+                   id="urlInput"
+                   class="form-control"
+                   placeholder="https://example.com">
+
+            <button class="btn btn-primary"
+                    id="shortenBtn"
+                    onclick="shortenUrl()">
+                Сократить
+            </button>
+        </div>
+
+        <div id="result"></div>
+    </div>
 
 </main>
 
-<!-- FOOTER -->
 <footer class="container py-3 border-top mt-auto">
 
     <div class="d-flex justify-content-between align-items-center">
@@ -70,49 +76,103 @@
             <span class="ms-2 text-body-secondary">© 2026 EasyLink</span>
         </div>
 
-        <div>
-            <i class="bi bi-telegram fs-3"></i>
-        </div>
 
     </div>
 
 </footer>
 
-<!-- JS -->
 <script>
-    async function shortenUrl() {
-        const url = document.getElementById("urlInput").value;
+    let currentUser = null;
 
-        if (!url) {
-            document.getElementById("result").innerHTML =
-                `<div class="alert alert-danger">Введите ссылку</div>`;
+    async function loadCurrentUser() {
+        try {
+            const response = await fetch("/api/auth/me", { credentials: "include" });
+            if (response.ok) {
+                currentUser = await response.json();
+                showAuthenticatedUI();
+            } else {
+                showGuestUI();
+            }
+        } catch (e) {
+            showGuestUI();
+        }
+    }
+
+    function showAuthenticatedUI() {
+        document.getElementById("guestMessage").classList.add("d-none");
+        document.getElementById("shortenSection").classList.remove("d-none");
+        document.getElementById("authHeader").innerHTML =
+            `<span class="me-3 text-body-secondary">${currentUser.username}</span>` +
+            `<button class="btn btn-outline-secondary" onclick="logout()">Выйти</button>`;
+    }
+
+    function showGuestUI() {
+        currentUser = null;
+        document.getElementById("guestMessage").classList.remove("d-none");
+        document.getElementById("shortenSection").classList.add("d-none");
+        document.getElementById("authHeader").innerHTML =
+            `<a href="/login" class="btn btn-outline-primary me-2">Войти</a>` +
+            `<a href="/register" class="btn btn-primary">Регистрация</a>`;
+    }
+
+    async function logout() {
+        try {
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        } catch (e) {
+            alert("Ошибка сети. Проверьте подключение.");
             return;
         }
+        showGuestUI();
+    }
+
+    async function shortenUrl() {
+        const url = document.getElementById("urlInput").value;
+        const result = document.getElementById("result");
+        const btn = document.getElementById("shortenBtn");
+
+        if (!url) {
+            result.innerHTML = `<div class="alert alert-danger">Введите ссылку</div>`;
+            return;
+        }
+
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = "Обработка…";
+        result.innerHTML = "";
 
         try {
             const response = await fetch("/api/urls", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({ url })
             });
 
-            const data = await response.json();
+            if (response.status === 401 || response.status === 403) {
+                result.innerHTML = `<div class="alert alert-warning">Войдите, чтобы создавать ссылки.</div>`;
+                return;
+            }
 
-            document.getElementById("result").innerHTML =
+            if (!response.ok) {
+                result.innerHTML = `<div class="alert alert-danger">Ошибка сервера</div>`;
+                return;
+            }
+
+            const data = await response.json();
+            result.innerHTML =
                 `<div class="alert alert-success mt-3">
                     Короткая ссылка: <br>
-                    <a href="${data.shortUrl}" target="_blank">
-                        ${data.shortUrl}
-                    </a>
+                    <a href="${data.shortUrl}" target="_blank">${data.shortUrl}</a>
                 </div>`;
-
         } catch (e) {
-            document.getElementById("result").innerHTML =
-                `<div class="alert alert-danger">Ошибка сервера</div>`;
+            alert("Ошибка сети. Проверьте подключение.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
         }
     }
+
+    loadCurrentUser();
 </script>
 
 </body>
